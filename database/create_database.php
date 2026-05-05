@@ -55,8 +55,7 @@ try {
             UNIQUE KEY `uniq_users_masook_user_id` (`masook_user_id`),
             KEY `idx_users_nomor_handphone` (`nomor_handphone`),
             KEY `idx_users_organisasi_id` (`organisasi_id`),
-            KEY `idx_users_organisasi_kode` (`organisasi_kode`),
-            KEY `idx_users_latitude_longitude` (`latitude`, `longitude`)
+            KEY `idx_users_organisasi_kode` (`organisasi_kode`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE `sessions` (
             `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
