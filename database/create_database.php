@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/../config/database.php';
 
 function db_identifier(string $identifier): string
 {
@@ -43,15 +43,20 @@ try {
             `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             `username` VARCHAR(190) NOT NULL,
             `masook_user_id` VARCHAR(100) DEFAULT NULL,
+            `nomor_handphone` VARCHAR(30) DEFAULT NULL,
             `organisasi_id` VARCHAR(100) DEFAULT NULL,
             `organisasi_kode` VARCHAR(100) DEFAULT NULL,
+            `latitude` VARCHAR(50) DEFAULT NULL,
+            `longitude` VARCHAR(50) DEFAULT NULL,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
             UNIQUE KEY `uniq_users_username` (`username`),
             UNIQUE KEY `uniq_users_masook_user_id` (`masook_user_id`),
+            KEY `idx_users_nomor_handphone` (`nomor_handphone`),
             KEY `idx_users_organisasi_id` (`organisasi_id`),
-            KEY `idx_users_organisasi_kode` (`organisasi_kode`)
+            KEY `idx_users_organisasi_kode` (`organisasi_kode`),
+            KEY `idx_users_latitude_longitude` (`latitude`, `longitude`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE `sessions` (
             `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

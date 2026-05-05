@@ -8,6 +8,7 @@ $routes = [
     'history' => 'riwayat_presensi.php',
     'today' => 'presensi_today.php',
     'presence' => 'presensi_personal.php',
+    'message' => 'presensi_message.php',
     'orgs' => 'organisasi.php',
 ];
 
@@ -40,6 +41,13 @@ $menus = [
         'icon' => 'bi-fingerprint',
         'href' => 'presensi_personal.php',
         'tone' => 'warning',
+    ],
+    [
+        'title' => 'Message Presence',
+        'description' => 'Kerangka backend presensi lewat WhatsApp bot.',
+        'icon' => 'bi-whatsapp',
+        'href' => 'presensi_message.php',
+        'tone' => 'success',
     ],
     [
         'title' => 'Organizations',

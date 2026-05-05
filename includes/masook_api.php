@@ -230,15 +230,39 @@ function update_masook_session_tokens(
     }
 }
 
+function db_column_exists(string $table, string $column): bool
+{
+    $stmt = db()->prepare(
+        'SELECT COUNT(*)
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = :table_name
+           AND COLUMN_NAME = :column_name'
+    );
+    $stmt->execute([
+        'table_name' => $table,
+        'column_name' => $column,
+    ]);
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
 function masook_session_select_sql(): string
 {
+    $latitudeSelect = db_column_exists('users', 'latitude') ? 'users.latitude' : "NULL AS latitude";
+    $longitudeSelect = db_column_exists('users', 'longitude') ? 'users.longitude' : "NULL AS longitude";
+    $nomorHandphoneSelect = db_column_exists('users', 'nomor_handphone') ? 'users.nomor_handphone' : "NULL AS nomor_handphone";
+
     return "SELECT
             sessions.id,
             sessions.user_id AS local_user_id,
             users.username,
             users.masook_user_id AS user_id,
+            {$nomorHandphoneSelect},
             users.organisasi_id,
             users.organisasi_kode,
+            {$latitudeSelect},
+            {$longitudeSelect},
             sessions.access_token,
             sessions.refresh_token,
             sessions.token_type,
@@ -270,6 +294,36 @@ function find_masook_session_by_user_id(string $userId): ?array
 {
     $stmt = db()->prepare(masook_session_select_sql() . ' WHERE users.masook_user_id = :user_id LIMIT 1');
     $stmt->execute(['user_id' => $userId]);
+    $session = $stmt->fetch();
+
+    return $session ?: null;
+}
+
+function find_masook_session_by_phone(string $phone): ?array
+{
+    if (!db_column_exists('users', 'nomor_handphone')) {
+        return null;
+    }
+
+    $digits = preg_replace('/\D+/', '', $phone) ?? '';
+    if ($digits === '') {
+        return null;
+    }
+
+    $candidates = [$digits];
+    if (str_starts_with($digits, '0')) {
+        $candidates[] = '62' . substr($digits, 1);
+    } elseif (str_starts_with($digits, '62')) {
+        $candidates[] = '0' . substr($digits, 2);
+    }
+
+    $candidates = array_values(array_unique($candidates));
+    $placeholders = implode(', ', array_fill(0, count($candidates), '?'));
+    $stmt = db()->prepare(
+        masook_session_select_sql()
+        . " WHERE REPLACE(REPLACE(REPLACE(users.nomor_handphone, '+', ''), '-', ''), ' ', '') IN ({$placeholders}) LIMIT 1"
+    );
+    $stmt->execute($candidates);
     $session = $stmt->fetch();
 
     return $session ?: null;

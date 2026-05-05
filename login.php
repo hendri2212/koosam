@@ -29,7 +29,6 @@ if (!isset($_GET['logout']) && $_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($
 $defaults = [
     'username' => 'yuli.anoor305@gmail.com',
     'password' => '',
-    'organisasi_id' => '',
     'app_version' => MASOOK_APP_VERSION,
 ];
 
@@ -39,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $username = trim((string) ($_POST['username'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
-        $organisasiId = trim((string) ($_POST['organisasi_id'] ?? ''));
         $appVersion = trim((string) ($_POST['app_version'] ?? MASOOK_APP_VERSION));
 
         if ($username === '' || $password === '') {
@@ -59,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (string) $accessToken,
             $refreshToken ? (string) $refreshToken : null,
             $userId,
-            $organisasiId,
+            null,
             $appVersion,
             (int) $login['status_code'],
             is_array($login['body']) ? $login['body'] : ['raw' => $login['body']]
@@ -107,11 +105,7 @@ page_start('Login Masook', [
                         <label class="form-label fw-semibold" for="password">Password</label>
                         <input class="form-control" id="password" name="password" type="password" value="<?= e((string) ($_POST['password'] ?? $defaults['password'])) ?>" required>
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label fw-semibold" for="organisasi_id">Organisasi ID</label>
-                        <input class="form-control" id="organisasi_id" name="organisasi_id" type="text" value="<?= e((string) ($_POST['organisasi_id'] ?? $defaults['organisasi_id'])) ?>" placeholder="Opsional">
-                    </div>
-                    <div class="col-12 col-md-6">
+                    <div class="col-12">
                         <label class="form-label fw-semibold" for="app_version">Versi Aplikasi</label>
                         <input class="form-control" id="app_version" name="app_version" type="text" value="<?= e((string) ($_POST['app_version'] ?? $defaults['app_version'])) ?>" required>
                     </div>

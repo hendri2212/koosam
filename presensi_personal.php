@@ -6,8 +6,6 @@ require_once __DIR__ . '/includes/layout.php';
 
 date_default_timezone_set('Asia/Makassar');
 
-const PRESENSI_LATITUDE = '-3.2497189';
-const PRESENSI_LONGITUDE = '116.2159197';
 const PRESENSI_DEVICE = 'Xiaomi-M2103K19PG';
 const PRESENSI_ACCURACY = '10.0';
 
@@ -113,8 +111,6 @@ $defaults = [
     'username' => (string) ($currentSession['username'] ?? ''),
     'user_id' => (string) ($currentSession['user_id'] ?? ''),
     'kode_org' => (string) ($_GET['kode_org'] ?? ($currentSession !== null ? find_kode_org_from_session($currentSession) : '')),
-    'latitude' => PRESENSI_LATITUDE,
-    'longitude' => PRESENSI_LONGITUDE,
     'akurasi' => PRESENSI_ACCURACY,
     'nama_perangkat' => PRESENSI_DEVICE,
     'percobaan_ke' => '1',
@@ -130,6 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $session = ensure_valid_masook_session($currentSession);
         $userId = (string) ($session['user_id'] ?? '');
         $kodeOrg = trim((string) ($_POST['kode_org'] ?? ''));
+        $latitude = trim((string) ($session['latitude'] ?? ''));
+        $longitude = trim((string) ($session['longitude'] ?? ''));
         $waktuScan = date('Y-m-d H:i:s');
 
         if ($userId === '') {
@@ -146,6 +144,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($kodeOrg === '') {
             throw new RuntimeException('kodeOrg tidak ditemukan di database. Isi kolom kodeOrg atau simpan organisasi_kode di tabel users.');
+        }
+
+        if ($latitude === '' || $longitude === '') {
+            throw new RuntimeException('Latitude dan longitude belum ada di database. Lengkapi field latitude dan longitude di tabel users.');
         }
 
         $orgUserUrl = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/user';
@@ -174,8 +176,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payload = [
             'user_id' => $userId,
             'waktu_scan' => $waktuScan,
-            'latitude' => trim((string) ($_POST['latitude'] ?? PRESENSI_LATITUDE)),
-            'longitude' => trim((string) ($_POST['longitude'] ?? PRESENSI_LONGITUDE)),
+            'latitude' => $latitude,
+            'longitude' => $longitude,
             'akurasi' => trim((string) ($_POST['akurasi'] ?? PRESENSI_ACCURACY)),
             'nama_perangkat' => trim((string) ($_POST['nama_perangkat'] ?? PRESENSI_DEVICE)),
             'percobaan_ke' => trim((string) ($_POST['percobaan_ke'] ?? '1')),
@@ -218,6 +220,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $responseBlock = $result['presensi'] ?? ($result['org_user'] ?? null);
 $body = is_array($responseBlock['body'] ?? null) ? $responseBlock['body'] : [];
 $statusCode = $result !== null ? (int) ($responseBlock['status_code'] ?? 0) : 0;
+$pageFooterScripts = <<<'HTML'
+<script>
+    function updateCurrentTime() {
+        const target = document.getElementById('currentTime');
+        if (!target) {
+            return;
+        }
+
+        const now = new Date();
+        target.textContent = now.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }).replace(/\./g, ':');
+    }
+
+    updateCurrentTime();
+    setInterval(updateCurrentTime, 1000);
+</script>
+HTML;
 page_start('Presensi Personal', [
     'active' => 'presence',
     'endpoint' => MASOOK_BASE_URL . '/api/orgs/{kodeOrg}/presensi/personal',
@@ -227,17 +250,12 @@ page_start('Presensi Personal', [
             <div class="card-body">
                 <form method="post" class="row g-3 align-items-end">
                     <input type="hidden" name="kode_org" value="<?= e((string) ($_POST['kode_org'] ?? $defaults['kode_org'])) ?>">
+                    <div class="col-12">
+                        <div id="currentTime" class="presence-clock fw-semibold mono-small text-center">--:--:--</div>
+                    </div>
                     <div class="col-12 col-md-6 col-lg-3">
                         <label class="form-label fw-semibold" for="percobaan_ke">Percobaan</label>
                         <input class="form-control" id="percobaan_ke" name="percobaan_ke" type="number" min="1" value="<?= e((string) ($_POST['percobaan_ke'] ?? $defaults['percobaan_ke'])) ?>">
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-3">
-                        <label class="form-label fw-semibold" for="latitude">Latitude</label>
-                        <input class="form-control mono-small" id="latitude" name="latitude" type="text" value="<?= e((string) ($_POST['latitude'] ?? $defaults['latitude'])) ?>" required>
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-3">
-                        <label class="form-label fw-semibold" for="longitude">Longitude</label>
-                        <input class="form-control mono-small" id="longitude" name="longitude" type="text" value="<?= e((string) ($_POST['longitude'] ?? $defaults['longitude'])) ?>" required>
                     </div>
                     <div class="col-12 col-md-6 col-lg-3">
                         <label class="form-label fw-semibold" for="akurasi">Akurasi</label>

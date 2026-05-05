@@ -1,15 +1,18 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/../config/database.php';
 
 $seedUsers = [
     [
         'id' => 1,
         'username' => 'yuli.anoor305@gmail.com',
         'masook_user_id' => '963262',
+        'nomor_handphone' => '085746080544',
         'organisasi_id' => '1073',
         'organisasi_kode' => 'ORG-NMTUVO',
+        'latitude' => '-3.2497189',
+        'longitude' => '116.2159197',
         'created_at' => '2026-05-04 18:40:09',
         'updated_at' => '2026-05-04 20:33:21',
     ],
@@ -25,14 +28,17 @@ try {
 
     $stmt = $pdo->prepare(
         "INSERT INTO users
-            (id, username, masook_user_id, organisasi_id, organisasi_kode, created_at, updated_at)
+            (id, username, masook_user_id, nomor_handphone, organisasi_id, organisasi_kode, latitude, longitude, created_at, updated_at)
          VALUES
-            (:id, :username, :masook_user_id, :organisasi_id, :organisasi_kode, :created_at, :updated_at)
+            (:id, :username, :masook_user_id, :nomor_handphone, :organisasi_id, :organisasi_kode, :latitude, :longitude, :created_at, :updated_at)
          ON DUPLICATE KEY UPDATE
             username = VALUES(username),
             masook_user_id = VALUES(masook_user_id),
+            nomor_handphone = VALUES(nomor_handphone),
             organisasi_id = VALUES(organisasi_id),
             organisasi_kode = VALUES(organisasi_kode),
+            latitude = VALUES(latitude),
+            longitude = VALUES(longitude),
             created_at = VALUES(created_at),
             updated_at = VALUES(updated_at)"
     );
@@ -47,8 +53,8 @@ try {
         }
     }
 
-    $pdo->exec('ALTER TABLE users AUTO_INCREMENT = 2');
     $pdo->commit();
+    $pdo->exec('ALTER TABLE users AUTO_INCREMENT = 2');
 } catch (Throwable $throwable) {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
@@ -154,9 +160,12 @@ try {
                     <tr>
                         <th>ID</th>
                         <th>Username</th>
+                        <th>No. HP</th>
                         <th>User ID</th>
                         <th>Organisasi</th>
                         <th>Kode</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -164,14 +173,17 @@ try {
                         <tr>
                             <td><?= htmlspecialchars((string) $user['id'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars($user['nomor_handphone'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($user['masook_user_id'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($user['organisasi_id'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($user['organisasi_kode'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars($user['latitude'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars($user['longitude'], ENT_QUOTES, 'UTF-8') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
-            <p style="margin-top:18px;"><a href="login.php">Lanjut ke login.php</a></p>
+            <p style="margin-top:18px;"><a href="../login.php">Lanjut ke login.php</a></p>
         <?php endif; ?>
     </section>
 </main>

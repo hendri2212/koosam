@@ -8,6 +8,7 @@ function page_start(string $title, array $options = []): void
     $subtitle = (string) ($options['subtitle'] ?? 'Koosam Application');
     $endpoint = (string) ($options['endpoint'] ?? '');
     $containerClass = (string) ($options['container_class'] ?? 'page-shell');
+    $showNav = (bool) ($options['show_nav'] ?? true);
     $extraCss = (string) ($options['extra_css'] ?? '');
     ?>
 <!doctype html>
@@ -83,6 +84,11 @@ function page_start(string $title, array $options = []): void
             height: 48px;
             flex: 0 0 48px;
         }
+        .presence-clock {
+            font-size: clamp(3.6rem, 18vw, 7rem);
+            line-height: .95;
+            letter-spacing: 0;
+        }
         @media (min-width: 768px) {
             .page-shell {
                 max-width: 960px;
@@ -109,7 +115,7 @@ function page_start(string $title, array $options = []): void
                 </div>
                 <?php if (!empty($options['header_actions'])): ?>
                     <div class="d-flex gap-2 flex-shrink-0"><?= $options['header_actions'] ?></div>
-                <?php elseif (($options['show_logout'] ?? true) === true): ?>
+                <?php elseif ($showNav && ($options['show_logout'] ?? true) === true): ?>
                     <div class="d-flex justify-content-end flex-shrink-0">
                         <a class="btn btn-light btn-sm" href="login.php?logout=1">
                             <i class="bi bi-box-arrow-right me-1"></i>Logout
@@ -125,9 +131,13 @@ function page_start(string $title, array $options = []): void
 
 function page_end(): void
 {
+    global $pageFooterScripts;
     ?>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if (!empty($pageFooterScripts)): ?>
+        <?= $pageFooterScripts ?>
+    <?php endif; ?>
 </body>
 </html>
     <?php
