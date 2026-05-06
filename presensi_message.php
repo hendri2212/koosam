@@ -7,6 +7,8 @@ date_default_timezone_set('Asia/Makassar');
 
 const PRESENSI_MESSAGE_DEVICE = 'WhatsApp Bot';
 const PRESENSI_MESSAGE_ACCURACY = '10.0';
+const WHATSAPP_BOT_SEND_URL_DEV  = 'http://localhost:3000/send';
+const WHATSAPP_BOT_SEND_URL_PROD = 'https://wabot.tukarjual.com/send';
 
 function pm_table_column_exists(string $table, string $column): bool
 {
@@ -94,6 +96,7 @@ function pm_extract_message(array $payload): array
 {
     $message = '';
     $sender = '';
+    $deviceId = '';
     $username = '';
     $latitude = '';
     $longitude = '';
@@ -112,6 +115,11 @@ function pm_extract_message(array $payload): array
         'participant',
         'wa_id',
     ];
+
+    // Ambil device_id dari payload (format baru WhatsApp bot)
+    if (isset($payload['device_id']) && is_scalar($payload['device_id'])) {
+        $deviceId = trim((string) $payload['device_id']);
+    }
 
     foreach ($messageKeys as $key) {
         if (isset($payload[$key]) && is_scalar($payload[$key]) && trim((string) $payload[$key]) !== '') {
@@ -148,6 +156,7 @@ function pm_extract_message(array $payload): array
     $longitude = (string) ($payload['longitude'] ?? $payload['lng'] ?? $payload['lon'] ?? $longitude);
 
     return [
+        'device_id' => $deviceId,
         'sender' => pm_clean_phone($sender),
         'message' => trim($message),
         'username' => trim($username),
@@ -187,6 +196,7 @@ function pm_parse_command(array $incoming): array
     $numberValues = $numbers[0] ?? [];
 
     return [
+        'device_id' => (string) ($incoming['device_id'] ?? ''),
         'sender' => (string) ($incoming['sender'] ?? ''),
         'command' => $command,
         'username' => (string) ($keyValues['username'] ?? $keyValues['email'] ?? $incoming['username'] ?? $email),
@@ -222,18 +232,75 @@ function pm_find_session(array $command): ?array
 
 function pm_help_reply(): string
 {
-    return "Format presensi:\n"
-        . "ABSEN\n\n"
-        . "Alternatif:\n"
-        . "PRESENSI\n\n"
+    return "Format perintah yang tersedia:\n"
+        . "• *ABSENSI* — Uji coba balasan bot\n"
+        . "• *ABSEN* — Kirim presensi masuk/pulang\n"
+        . "• *PRESENSI* — Alternatif ABSEN\n\n"
         . "Nomor WhatsApp pengirim harus tersimpan di database. Data username, kode_org, latitude, dan longitude akan diambil dari tabel users.";
+}
+
+/**
+ * Deteksi URL bot berdasarkan environment.
+ * Development : HTTP_HOST mengandung 'localhost' atau '127.0.0.1'
+ * Production  : semua host lainnya
+ */
+function pm_bot_send_url(): string
+{
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $isLocal = str_contains($host, 'localhost') || str_contains($host, '127.0.0.1');
+
+    return $isLocal ? WHATSAPP_BOT_SEND_URL_DEV : WHATSAPP_BOT_SEND_URL_PROD;
+}
+
+/**
+ * Kirim balasan pesan ke nomor WhatsApp melalui endpoint bot.
+ */
+function pm_send_whatsapp_reply(string $to, string $message): array
+{
+    if ($to === '') {
+        return ['ok' => false, 'error' => 'Nomor tujuan kosong'];
+    }
+
+    $sendUrl = pm_bot_send_url();
+    $payload  = json_encode(['to' => $to, 'message' => $message], JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init($sendUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_TIMEOUT        => 10,
+    ]);
+
+    $response  = curl_exec($ch);
+    $httpCode  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    return [
+        'ok'         => $httpCode >= 200 && $httpCode < 300,
+        'send_url'   => $sendUrl,
+        'http_code'  => $httpCode,
+        'response'   => $response,
+        'curl_error' => $curlError,
+    ];
 }
 
 function pm_send_presensi(array $command): array
 {
+    // Command ABSENSI: tes balasan bot tanpa memproses presensi ke API
+    if ($command['command'] === 'ABSENSI') {
+        return [
+            'ok'         => true,
+            'reply_text' => 'Absensi berhasil di lakukan',
+            'skipped_masook_api' => true,
+        ];
+    }
+
     if (!in_array($command['command'], ['ABSEN', 'PRESENSI'], true)) {
         return [
-            'ok' => false,
+            'ok'         => false,
             'reply_text' => pm_help_reply(),
         ];
     }
@@ -331,23 +398,31 @@ function pm_json_response(array $data, int $statusCode = 200): void
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $payload = pm_decode_webhook_payload();
+        $payload  = pm_decode_webhook_payload();
         $incoming = pm_extract_message($payload);
-        $command = pm_parse_command($incoming);
-        $result = pm_send_presensi($command);
+        $command  = pm_parse_command($incoming);
+        $result   = pm_send_presensi($command);
+
+        // Kirim balasan ke pengirim melalui bot WhatsApp
+        $sender     = $incoming['sender'] ?? '';
+        $replyText  = $result['reply_text'] ?? '';
+        $botReply   = $sender !== '' && $replyText !== ''
+            ? pm_send_whatsapp_reply($sender, $replyText)
+            : ['ok' => false, 'error' => 'Sender kosong, balasan tidak dikirim'];
 
         pm_json_response([
-            'ok' => $result['ok'],
-            'reply_text' => $result['reply_text'],
-            'incoming' => $incoming,
-            'command' => $command,
-            'result' => $result,
+            'ok'        => $result['ok'],
+            'reply_text'=> $replyText,
+            'bot_reply' => $botReply,
+            'incoming'  => $incoming,
+            'command'   => $command,
+            'result'    => $result,
         ], $result['ok'] ? 200 : 422);
     } catch (Throwable $throwable) {
         pm_json_response([
-            'ok' => false,
+            'ok'         => false,
             'reply_text' => $throwable->getMessage(),
-            'error' => $throwable->getMessage(),
+            'error'      => $throwable->getMessage(),
         ], 422);
     }
     exit;
@@ -424,8 +499,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <h2>Contoh Payload POST</h2>
         <pre>{
+  "device_id": "628xxxx:xx@s.whatsapp.net",
   "from": "6285746080544",
-  "message": "ABSEN"
+  "message": "ABSEN",
+  "timestamp": 1771234567
 }</pre>
 
         <h2>Response</h2>
