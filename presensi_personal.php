@@ -251,7 +251,7 @@ page_start('Presensi Personal', [
                 <form method="post" class="row g-3 align-items-end">
                     <input type="hidden" name="kode_org" value="<?= e((string) ($_POST['kode_org'] ?? $defaults['kode_org'])) ?>">
                     <div class="col-12">
-                        <div id="currentTime" class="presence-clock fw-semibold mono-small text-center">--:--:--</div>
+                        <div id="currentTime" class="presence-clock fw-semibold mono-small text-center text-nowrap">--:--:--</div>
                     </div>
                     <div class="col-12 col-md-6 col-lg-3">
                         <label class="form-label fw-semibold" for="percobaan_ke">Percobaan</label>
