@@ -94,6 +94,16 @@ function scan_time(array $row): string
     return $timestamp !== false ? date('H:i:s', $timestamp) : $waktuScan;
 }
 
+function to_wita(string $timeStr): string
+{
+    if ($timeStr === '-' || $timeStr === '') {
+        return $timeStr;
+    }
+
+    $timestamp = strtotime($timeStr);
+    return $timestamp !== false ? date('H:i:s', $timestamp + 3600) : $timeStr;
+}
+
 function scan_timestamp(array $row): int
 {
     $waktuScan = row_value($row, ['waktu_scan'], '');
@@ -418,9 +428,9 @@ page_start('Riwayat Presensi', [
                                 <?php
                                     $firstItem = $dayItems[0];
                                     $lastItem = $dayItems[count($dayItems) - 1];
-                                    $jamMasuk = row_value($firstItem, ['jam_masuk', 'waktu_masuk', 'masuk', 'check_in', 'presensi_masuk'], scan_time($firstItem));
+                                    $jamMasuk = to_wita(row_value($firstItem, ['jam_masuk', 'waktu_masuk', 'masuk', 'check_in', 'presensi_masuk'], scan_time($firstItem)));
                                     $jamPulang = count($dayItems) > 1
-                                        ? row_value($lastItem, ['jam_pulang', 'waktu_pulang', 'pulang', 'check_out', 'presensi_pulang'], scan_time($lastItem))
+                                        ? to_wita(row_value($lastItem, ['jam_pulang', 'waktu_pulang', 'pulang', 'check_out', 'presensi_pulang'], scan_time($lastItem)))
                                         : '-';
                                     $label = row_value($firstItem, ['label', 'status', 'status_presensi', 'status_kehadiran', 'jenis', 'tipe'], 'Terekam');
                                     $latitude = row_value($firstItem, ['latitude', 'lat']);
