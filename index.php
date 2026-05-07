@@ -23,6 +23,13 @@ $session = require_masook_login();
 
 $menus = [
     [
+        'title' => 'Presence',
+        'description' => 'Buka halaman presensi personal.',
+        'icon' => 'bi-fingerprint',
+        'href' => 'presensi_personal.php',
+        'tone' => 'warning',
+    ],
+    [
         'title' => 'History Presence',
         'description' => 'Lihat riwayat presensi berdasarkan rentang tanggal.',
         'icon' => 'bi-clock-history',
@@ -42,13 +49,6 @@ $menus = [
         'icon' => 'bi-calendar-check',
         'href' => 'presensi_status.php',
         'tone' => 'primary',
-    ],
-    [
-        'title' => 'Presence',
-        'description' => 'Buka halaman presensi personal.',
-        'icon' => 'bi-fingerprint',
-        'href' => 'presensi_personal.php',
-        'tone' => 'warning',
     ],
     [
         'title' => 'Message Presence',
