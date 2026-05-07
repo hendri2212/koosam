@@ -28,7 +28,7 @@ if (!isset($_GET['logout']) && $_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($
 
 $defaults = [
     'username' => 'yuli.anoor305@gmail.com',
-    'password' => '',
+    'password' => '123456',
     'app_version' => MASOOK_APP_VERSION,
 ];
 
