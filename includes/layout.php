@@ -109,16 +109,16 @@ function page_start(string $title, array $options = []): void
     <header class="top-band text-white">
         <div class="container <?= e($containerClass) ?> py-4">
             <div class="d-flex flex-row gap-3 align-items-center justify-content-between">
-                <div class="min-w-0">
+                <a class="min-w-0 text-white text-decoration-none" href="index.php">
                     <div class="app-subtitle small mb-1"><?= e($subtitle) ?></div>
                     <h1 class="app-title fw-semibold mb-2"><?= e($title) ?></h1>
-                </div>
+                </a>
                 <?php if (!empty($options['header_actions'])): ?>
                     <div class="d-flex gap-2 flex-shrink-0"><?= $options['header_actions'] ?></div>
                 <?php elseif ($showNav && ($options['show_logout'] ?? true) === true): ?>
                     <div class="d-flex justify-content-end flex-shrink-0">
-                        <a class="btn btn-light btn-sm" href="login.php?logout=1">
-                            <i class="bi bi-box-arrow-right me-1"></i>Logout
+                        <a class="btn btn-light btn-sm" href="login.php?logout=1" title="Logout" aria-label="Logout">
+                            <i class="bi bi-power"></i>
                         </a>
                     </div>
                 <?php endif; ?>

@@ -30,17 +30,17 @@ $menus = [
         'tone' => 'warning',
     ],
     [
-        'title' => 'History Presence',
-        'description' => 'Lihat riwayat presensi berdasarkan rentang tanggal.',
-        'icon' => 'bi-clock-history',
-        'href' => 'riwayat_presensi.php',
-        'tone' => 'success',
-    ],
-    [
         'title' => 'History Today',
         'description' => 'Lihat data presensi khusus hari ini saja.',
         'icon' => 'bi-calendar-day',
         'href' => 'riwayat_today.php',
+        'tone' => 'success',
+    ],
+    [
+        'title' => 'History Presence',
+        'description' => 'Lihat riwayat presensi berdasarkan rentang tanggal.',
+        'icon' => 'bi-clock-history',
+        'href' => 'riwayat_presensi.php',
         'tone' => 'success',
     ],
     [

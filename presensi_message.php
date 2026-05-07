@@ -196,17 +196,18 @@ function pm_parse_command(array $incoming): array
     $numberValues = $numbers[0] ?? [];
 
     return [
-        'device_id' => (string) ($incoming['device_id'] ?? ''),
-        'sender' => (string) ($incoming['sender'] ?? ''),
-        'command' => $command,
-        'username' => (string) ($keyValues['username'] ?? $keyValues['email'] ?? $incoming['username'] ?? $email),
-        'user_id' => (string) ($keyValues['user_id'] ?? $keyValues['userid'] ?? ''),
-        'kode_org' => (string) ($keyValues['kode_org'] ?? $keyValues['kodeorg'] ?? $keyValues['kode'] ?? ''),
-        'latitude' => (string) ($keyValues['latitude'] ?? $keyValues['lat'] ?? $incoming['latitude'] ?? ($numberValues[0] ?? '')),
-        'longitude' => (string) ($keyValues['longitude'] ?? $keyValues['lng'] ?? $keyValues['lon'] ?? $incoming['longitude'] ?? ($numberValues[1] ?? '')),
-        'akurasi' => (string) ($keyValues['akurasi'] ?? $keyValues['accuracy'] ?? PRESENSI_MESSAGE_ACCURACY),
-        'nama_perangkat' => (string) ($keyValues['device'] ?? $keyValues['nama_perangkat'] ?? PRESENSI_MESSAGE_DEVICE),
-        'percobaan_ke' => (string) ($keyValues['percobaan_ke'] ?? $keyValues['percobaan'] ?? '1'),
+        'device_id'     => (string) ($incoming['device_id'] ?? ''),
+        'sender'        => (string) ($incoming['sender'] ?? ''),
+        'command'       => $command,
+        'username'      => (string) ($keyValues['username'] ?? $keyValues['email'] ?? $incoming['username'] ?? $email),
+        'password'      => (string) ($keyValues['password'] ?? $tokens[2] ?? ''),
+        'user_id'       => (string) ($keyValues['user_id'] ?? $keyValues['userid'] ?? ''),
+        'kode_org'      => (string) ($keyValues['kode_org'] ?? $keyValues['kodeorg'] ?? $keyValues['kode'] ?? ''),
+        'latitude'      => (string) ($keyValues['latitude'] ?? $keyValues['lat'] ?? $incoming['latitude'] ?? ($numberValues[0] ?? '')),
+        'longitude'     => (string) ($keyValues['longitude'] ?? $keyValues['lng'] ?? $keyValues['lon'] ?? $incoming['longitude'] ?? ($numberValues[1] ?? '')),
+        'akurasi'       => (string) ($keyValues['akurasi'] ?? $keyValues['accuracy'] ?? PRESENSI_MESSAGE_ACCURACY),
+        'nama_perangkat'=> (string) ($keyValues['device'] ?? $keyValues['nama_perangkat'] ?? PRESENSI_MESSAGE_DEVICE),
+        'percobaan_ke'  => (string) ($keyValues['percobaan_ke'] ?? $keyValues['percobaan'] ?? '1'),
     ];
 }
 
@@ -230,13 +231,90 @@ function pm_find_session(array $command): ?array
     return null;
 }
 
+function pm_update_user_phone(string $username, string $phone): void
+{
+    if ($phone === '' || $username === '') {
+        return;
+    }
+
+    if (!pm_table_column_exists('users', 'nomor_handphone')) {
+        return;
+    }
+
+    $stmt = db()->prepare(
+        'UPDATE users SET nomor_handphone = :phone WHERE username = :username'
+    );
+    $stmt->execute(['phone' => $phone, 'username' => $username]);
+}
+
+function pm_register_user(array $command): array
+{
+    $username = trim($command['username']);
+    $password = trim($command['password']);
+    $sender   = trim($command['sender']);
+
+    if ($username === '' || $password === '') {
+        return [
+            'ok'         => false,
+            'reply_text' => "Format pendaftaran salah.\n\nGunakan format:\n*REG EMAIL PASSWORD*\n\nContoh:\nREG nama@email.com password123",
+        ];
+    }
+
+    if (!filter_var($username, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'ok'         => false,
+            'reply_text' => "Username harus berupa alamat email yang valid.\n\nContoh:\nREG nama@email.com password123",
+        ];
+    }
+
+    // Verifikasi dengan login langsung ke API Masook
+    $login = masook_login($username, $password);
+    $accessToken  = $login['body']['data']['access_token'] ?? null;
+    $refreshToken = $login['body']['data']['refresh_token'] ?? null;
+
+    if (!$accessToken) {
+        $apiMessage = pm_first_scalar_by_keys($login['body'] ?? [], ['message', 'error', 'msg']);
+        $detail = $apiMessage !== '' ? "\n\nPesan API: {$apiMessage}" : '';
+        return [
+            'ok'         => false,
+            'reply_text' => "Pendaftaran gagal. Username atau password salah.{$detail}\n\nSilahkan coba lagi dengan format:\n*REG EMAIL PASSWORD*",
+            'login'      => $login,
+        ];
+    }
+
+    $userId = jwt_sub((string) $accessToken);
+    save_masook_session(
+        $username,
+        (string) $accessToken,
+        $refreshToken ? (string) $refreshToken : null,
+        $userId,
+        null,
+        null,
+        (int) $login['status_code'],
+        is_array($login['body']) ? $login['body'] : ['raw' => $login['body']]
+    );
+
+    if ($sender !== '') {
+        pm_update_user_phone($username, $sender);
+    }
+
+    return [
+        'ok'         => true,
+        'reply_text' => "✅ *Register berhasil!*\n\nHalo, akun *{$username}* telah terdaftar di sistem.\n\nAnda sekarang dapat melakukan absensi dengan mengetik:\n*ABSEN*",
+        'username'   => $username,
+        'user_id'    => $userId,
+        'login'      => $login,
+    ];
+}
+
 function pm_help_reply(): string
 {
     return "Format perintah yang tersedia:\n"
-        . "• *ABSENSI* — Uji coba balasan bot\n"
         . "• *ABSEN* — Kirim presensi masuk/pulang\n"
-        . "• *PRESENSI* — Alternatif ABSEN\n\n"
-        . "Nomor WhatsApp pengirim harus tersimpan di database. Data username, kode_org, latitude, dan longitude akan diambil dari tabel users.";
+        . "• *PRESENSI* — Alternatif ABSEN\n"
+        . "• *ABSENSI* — Uji coba balasan bot\n"
+        . "• *REG EMAIL PASSWORD* — Daftar akun baru\n\n"
+        . "Jika belum terdaftar, ketik:\n*REG nama@email.com password_anda*";
 }
 
 /**
@@ -307,7 +385,10 @@ function pm_send_presensi(array $command): array
 
     $session = pm_find_session($command);
     if ($session === null) {
-        throw new RuntimeException('Session user tidak ditemukan. Pastikan nomor WhatsApp pengirim sudah tersimpan di users.nomor_handphone dan user sudah pernah login agar token tersedia.');
+        return [
+            'ok'         => false,
+            'reply_text' => "❌ *Anda tidak terdaftar di sistem.*\n\nSilahkan melakukan pendaftaran terlebih dahulu.\n\nFormat pendaftaran:\n*REG EMAIL PASSWORD*\n\nContoh:\nREG nama@email.com password123\n\nPastikan username berupa alamat email yang valid.",
+        ];
     }
 
     $session = ensure_valid_masook_session($session);
@@ -403,7 +484,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payload  = pm_decode_webhook_payload();
         $incoming = pm_extract_message($payload);
         $command  = pm_parse_command($incoming);
-        $result   = pm_send_presensi($command);
+
+        if ($command['command'] === 'REG') {
+            $result = pm_register_user($command);
+        } else {
+            $result = pm_send_presensi($command);
+        }
 
         // Kirim balasan ke pengirim melalui bot WhatsApp
         $sender     = $incoming['sender'] ?? '';
