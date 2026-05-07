@@ -42,6 +42,7 @@ try {
         "CREATE TABLE `users` (
             `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             `username` VARCHAR(190) NOT NULL,
+            `password` VARCHAR(255) DEFAULT NULL,
             `masook_user_id` VARCHAR(100) DEFAULT NULL,
             `nomor_handphone` VARCHAR(30) DEFAULT NULL,
             `organisasi_id` VARCHAR(100) DEFAULT NULL,

@@ -7,6 +7,7 @@ $seedUsers = [
     [
         'id' => 1,
         'username' => 'yuli.anoor305@gmail.com',
+        'password' => '123456',
         'masook_user_id' => '963262',
         'nomor_handphone' => '085746080544',
         'organisasi_id' => '1073',
@@ -28,11 +29,12 @@ try {
 
     $stmt = $pdo->prepare(
         "INSERT INTO users
-            (id, username, masook_user_id, nomor_handphone, organisasi_id, organisasi_kode, latitude, longitude, created_at, updated_at)
+            (id, username, password, masook_user_id, nomor_handphone, organisasi_id, organisasi_kode, latitude, longitude, created_at, updated_at)
          VALUES
-            (:id, :username, :masook_user_id, :nomor_handphone, :organisasi_id, :organisasi_kode, :latitude, :longitude, :created_at, :updated_at)
+            (:id, :username, :password, :masook_user_id, :nomor_handphone, :organisasi_id, :organisasi_kode, :latitude, :longitude, :created_at, :updated_at)
          ON DUPLICATE KEY UPDATE
             username = VALUES(username),
+            password = VALUES(password),
             masook_user_id = VALUES(masook_user_id),
             nomor_handphone = VALUES(nomor_handphone),
             organisasi_id = VALUES(organisasi_id),
@@ -166,6 +168,7 @@ try {
                         <th>Kode</th>
                         <th>Latitude</th>
                         <th>Longitude</th>
+                        <th>Password</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,6 +182,7 @@ try {
                             <td><?= htmlspecialchars($user['organisasi_kode'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($user['latitude'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($user['longitude'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><code>bcrypt hash</code></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
