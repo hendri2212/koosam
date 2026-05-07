@@ -113,7 +113,7 @@ $defaults = [
     'kode_org' => (string) ($_GET['kode_org'] ?? ($currentSession !== null ? find_kode_org_from_session($currentSession) : '')),
     'akurasi' => PRESENSI_ACCURACY,
     'nama_perangkat' => PRESENSI_DEVICE,
-    'percobaan_ke' => '1',
+    'percobaan_ke' => '0',
     'kode' => '',
 ];
 
@@ -180,13 +180,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'longitude' => $longitude,
             'akurasi' => trim((string) ($_POST['akurasi'] ?? PRESENSI_ACCURACY)),
             'nama_perangkat' => trim((string) ($_POST['nama_perangkat'] ?? PRESENSI_DEVICE)),
-            'percobaan_ke' => trim((string) ($_POST['percobaan_ke'] ?? '1')),
+            'percobaan_ke' => trim((string) ($_POST['percobaan_ke'] ?? '0')),
         ];
 
         $kode = trim((string) ($_POST['kode'] ?? ''));
         if ($kode !== '') {
             $payload['kode'] = $kode;
         }
+
+        $payload['nama_lokasi'] = 'SMP Negeri 1 kotabaru';
+        $payload['alamat'] = 'P6X7+R97, Semayap, Pulau Laut Utara, Kotabaru Regency, South Kalimantan 72113, Indonesia';
 
         $presensiUrl = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/presensi/personal';
         $presensi = masook_authorized_request('POST', $presensiUrl, $session, [
@@ -265,6 +268,7 @@ page_start('Presensi Personal', [
                         <label class="form-label fw-semibold" for="kode">Kode</label>
                         <input class="form-control" id="kode" name="kode" type="text" value="<?= e((string) ($_POST['kode'] ?? $defaults['kode'])) ?>" placeholder="Opsional">
                     </div>
+
                     <div class="col-12 col-lg-8">
                         <label class="form-label fw-semibold" for="nama_perangkat">Nama Perangkat</label>
                         <input class="form-control" id="nama_perangkat" name="nama_perangkat" type="text" value="<?= e((string) ($_POST['nama_perangkat'] ?? $defaults['nama_perangkat'])) ?>" required>

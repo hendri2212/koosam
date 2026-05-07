@@ -353,7 +353,9 @@ function pm_send_presensi(array $command): array
         'longitude' => $longitude,
         'akurasi' => trim($command['akurasi']) ?: PRESENSI_MESSAGE_ACCURACY,
         'nama_perangkat' => trim($command['nama_perangkat']) ?: PRESENSI_MESSAGE_DEVICE,
-        'percobaan_ke' => trim($command['percobaan_ke']) ?: '1',
+        'percobaan_ke' => trim($command['percobaan_ke']) ?: '0',
+        'nama_lokasi' => 'SMP Negeri 1 kotabaru',
+        'alamat' => 'P6X7+R97, Semayap, Pulau Laut Utara, Kotabaru Regency, South Kalimantan 72113, Indonesia',
     ];
 
     $presensiUrl = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/presensi/personal';
