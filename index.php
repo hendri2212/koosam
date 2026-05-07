@@ -6,7 +6,8 @@ require_once __DIR__ . '/includes/layout.php';
 
 $routes = [
     'history' => 'riwayat_presensi.php',
-    'today' => 'presensi_today.php',
+    'today' => 'riwayat_today.php',
+    'status' => 'presensi_status.php',
     'presence' => 'presensi_personal.php',
     'message' => 'presensi_message.php',
     'orgs' => 'organisasi.php',
@@ -29,10 +30,17 @@ $menus = [
         'tone' => 'success',
     ],
     [
-        'title' => 'Today Presence',
+        'title' => 'History Today',
+        'description' => 'Lihat data presensi khusus hari ini saja.',
+        'icon' => 'bi-calendar-day',
+        'href' => 'riwayat_today.php',
+        'tone' => 'success',
+    ],
+    [
+        'title' => 'Presence Status',
         'description' => 'Ambil response presensi hari ini dari API Koosam.',
         'icon' => 'bi-calendar-check',
-        'href' => 'presensi_today.php',
+        'href' => 'presensi_status.php',
         'tone' => 'primary',
     ],
     [

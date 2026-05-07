@@ -436,6 +436,7 @@ page_start('Riwayat Presensi', [
                                     $latitude = row_value($firstItem, ['latitude', 'lat']);
                                     $longitude = row_value($firstItem, ['longitude', 'lng', 'lon']);
                                     $namaPerangkat = row_value($firstItem, ['nama_perangkat', 'device_name', 'perangkat']);
+                                    $namaLokasi = row_value($firstItem, ['nama_lokasi', 'lokasi', 'location_name']);
                                     $keterangan = row_value($lastItem, ['keterangan', 'catatan', 'nama_aktivitas', 'aktivitas']);
                                 ?>
                                 <article class="card mobile-card border-0">
@@ -465,6 +466,12 @@ page_start('Riwayat Presensi', [
                                                 <span class="text-secondary"><i class="bi bi-phone me-1"></i>Perangkat</span>
                                                 <span class="fw-semibold text-end"><?= e($namaPerangkat) ?></span>
                                             </div>
+                                            <?php if ($namaLokasi !== '-'): ?>
+                                            <div class="d-flex align-items-center justify-content-between gap-3 py-1 border-top">
+                                                <span class="text-secondary"><i class="bi bi-building me-1"></i>Lokasi</span>
+                                                <span class="fw-semibold text-end"><?= e($namaLokasi) ?></span>
+                                            </div>
+                                            <?php endif; ?>
                                         </div>
 
                                         <?php if ($keterangan !== '-'): ?>
@@ -484,7 +491,7 @@ page_start('Riwayat Presensi', [
                             <div class="small text-secondary">
                                 Halaman <?= e((string) $pagination['current_page']) ?>
                                 <?php if ($pagination['from'] > 0): ?>
-                                    · Data <?= e((string) $pagination['from']) ?>-<?= e((string) $pagination['to']) ?>
+                                    · Data <?= e((string) (int) ceil($pagination['from'] / 2)) ?>-<?= e((string) (int) ceil($pagination['to'] / 2)) ?>
                                 <?php endif; ?>
                             </div>
                             <div class="btn-group w-100 w-sm-auto" role="group" aria-label="Pagination riwayat">

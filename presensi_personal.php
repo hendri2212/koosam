@@ -215,6 +215,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'sent_payload' => $payload,
             'presensi' => $presensi,
         ];
+
+        $presensiStatusCode = (int) ($presensi['status_code'] ?? 0);
+        if ($presensiStatusCode >= 200 && $presensiStatusCode < 300) {
+            header('Location: riwayat_today.php');
+            exit;
+        }
     } catch (Throwable $throwable) {
         $error = $throwable->getMessage();
     }
