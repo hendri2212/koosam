@@ -361,6 +361,31 @@ if ($shouldFetchHistory) {
 if ($result !== null && is_array($result['history']['body'] ?? null)) {
     $items = history_items($result['history']['body']);
     $pagination = history_pagination($result['history']['body']);
+
+    // Otomatis update koordinat jika di database masih kosong
+    $sessionCoordsEmpty = trim((string) ($session['latitude'] ?? '')) === '' || trim((string) ($session['longitude'] ?? '')) === '';
+    if ($sessionCoordsEmpty && !empty($items)) {
+        $firstItem = $items[0];
+        $detectedLat = row_value($firstItem, ['latitude', 'lat'], '');
+        $detectedLng = row_value($firstItem, ['longitude', 'lng', 'lon'], '');
+
+        if ($detectedLat !== '' && $detectedLng !== '') {
+            $coordsUpdated = update_masook_user_coordinates_if_empty(
+                (int) ($session['local_user_id'] ?? 0),
+                $detectedLat,
+                $detectedLng
+            );
+
+            if ($coordsUpdated) {
+                $updatedSession = find_masook_session_by_username((string) $session['username']);
+                if ($updatedSession !== null) {
+                    $session = $updatedSession;
+                    $currentSession = $updatedSession;
+                    sync_masook_session_to_php($updatedSession);
+                }
+            }
+        }
+    }
 } else {
     $items = [];
     $pagination = [

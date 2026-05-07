@@ -371,6 +371,32 @@ function update_masook_user_organisasi_id_if_empty(int $localUserId, string $org
     return $stmt->rowCount() > 0;
 }
 
+function update_masook_user_coordinates_if_empty(int $localUserId, string $latitude, string $longitude): bool
+{
+    $latitude = trim($latitude);
+    $longitude = trim($longitude);
+    
+    if ($localUserId <= 0 || ($latitude === '' && $longitude === '')) {
+        return false;
+    }
+
+    $stmt = db()->prepare(
+        "UPDATE users
+         SET latitude = CASE WHEN latitude IS NULL OR latitude = '' THEN :latitude ELSE latitude END,
+             longitude = CASE WHEN longitude IS NULL OR longitude = '' THEN :longitude ELSE longitude END
+         WHERE id = :id
+           AND (latitude IS NULL OR latitude = '' OR longitude IS NULL OR longitude = '')"
+    );
+    
+    $stmt->execute([
+        'id' => $localUserId,
+        'latitude' => $latitude,
+        'longitude' => $longitude,
+    ]);
+
+    return $stmt->rowCount() > 0;
+}
+
 function masook_session_is_expired(array $session): bool
 {
     if (empty($session['expires_at'])) {

@@ -87,6 +87,26 @@ try {
 
 $body = is_array($result['orgs']['body'] ?? null) ? $result['orgs']['body'] : [];
 $rows = find_org_rows($body);
+
+// Otomatis update organisasi_kode jika di database masih kosong
+$sessionOrganisasiKodeWasEmpty = trim((string) ($session['organisasi_kode'] ?? '')) === '';
+if ($sessionOrganisasiKodeWasEmpty && !empty($rows)) {
+    $firstOrg = $rows[0];
+    $detectedKode = org_value($firstOrg, ['kode_organisasi', 'organisasi_kode', 'kode_org', 'kodeOrg', 'kode', 'no_reg']);
+    
+    if ($detectedKode !== '' && $detectedKode !== '-') {
+        update_masook_user_organisasi_kode((string) $session['username'], $detectedKode);
+        
+        // Refresh session data agar UI langsung update
+        $updatedSession = find_masook_session_by_username((string) $session['username']);
+        if ($updatedSession !== null) {
+            $session = $updatedSession;
+            $currentSession = $updatedSession;
+            sync_masook_session_to_php($updatedSession);
+        }
+    }
+}
+
 $filteredRows = array_values(array_filter($rows, static fn(array $row): bool => org_matches($row, $query)));
 $statusCode = $result !== null ? (int) ($result['orgs']['status_code'] ?? 0) : 0;
 
@@ -167,10 +187,6 @@ page_start('Data Organisasi', [
                                         <span class="fw-semibold mono-small text-end"><?= e($masaBerlaku) ?></span>
                                     </div>
                                 </div>
-
-                                <a class="btn btn-success w-100" href="presensi_personal.php?kode_org=<?= e(rawurlencode($kode)) ?>">
-                                    <i class="bi bi-fingerprint me-1"></i>Pakai Organisasi
-                                </a>
                             </div>
                         </article>
                     <?php endforeach; ?>

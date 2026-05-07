@@ -199,8 +199,8 @@ function pm_parse_command(array $incoming): array
         'device_id'     => (string) ($incoming['device_id'] ?? ''),
         'sender'        => (string) ($incoming['sender'] ?? ''),
         'command'       => $command,
-        'username'      => (string) ($keyValues['username'] ?? $keyValues['email'] ?? $incoming['username'] ?? $email),
-        'password'      => (string) ($keyValues['password'] ?? $tokens[2] ?? ''),
+        'username'      => (string) ($keyValues['username'] ?? $keyValues['email'] ?? (($incoming['username'] ?? '') !== '' ? $incoming['username'] : $email)),
+        'password'      => (string) ($keyValues['password'] ?? ($tokens[2] ?? '')),
         'user_id'       => (string) ($keyValues['user_id'] ?? $keyValues['userid'] ?? ''),
         'kode_org'      => (string) ($keyValues['kode_org'] ?? $keyValues['kodeorg'] ?? $keyValues['kode'] ?? ''),
         'latitude'      => (string) ($keyValues['latitude'] ?? $keyValues['lat'] ?? $incoming['latitude'] ?? ($numberValues[0] ?? '')),
@@ -208,6 +208,7 @@ function pm_parse_command(array $incoming): array
         'akurasi'       => (string) ($keyValues['akurasi'] ?? $keyValues['accuracy'] ?? PRESENSI_MESSAGE_ACCURACY),
         'nama_perangkat'=> (string) ($keyValues['device'] ?? $keyValues['nama_perangkat'] ?? PRESENSI_MESSAGE_DEVICE),
         'percobaan_ke'  => (string) ($keyValues['percobaan_ke'] ?? $keyValues['percobaan'] ?? '1'),
+        'raw_tokens'    => $tokens,
     ];
 }
 
@@ -247,11 +248,36 @@ function pm_update_user_phone(string $username, string $phone): void
     $stmt->execute(['phone' => $phone, 'username' => $username]);
 }
 
+function pm_update_user_password(string $username, string $password): void
+{
+    if ($username === '' || $password === '') {
+        return;
+    }
+
+    if (!pm_table_column_exists('users', 'password')) {
+        return;
+    }
+
+    $stmt = db()->prepare(
+        'UPDATE users SET password = :password WHERE username = :username'
+    );
+    $stmt->execute(['password' => $password, 'username' => $username]);
+}
+
 function pm_register_user(array $command): array
 {
+    $tokens   = $command['raw_tokens'] ?? [];
     $username = trim($command['username']);
     $password = trim($command['password']);
     $sender   = trim($command['sender']);
+
+    // Fallback: ambil langsung dari token posisi ke-1 dan ke-2 (REG email password)
+    if ($username === '' && isset($tokens[1])) {
+        $username = trim($tokens[1]);
+    }
+    if ($password === '' && isset($tokens[2])) {
+        $password = trim($tokens[2]);
+    }
 
     if ($username === '' || $password === '') {
         return [
@@ -298,6 +324,103 @@ function pm_register_user(array $command): array
         pm_update_user_phone($username, $sender);
     }
 
+    // Simpan password ke database
+    pm_update_user_password($username, $password);
+
+    // Ambil session terbaru dari database
+    $session = find_masook_session_by_username($username);
+
+    if ($session !== null) {
+        $localUserId = (int) ($session['local_user_id'] ?? 0);
+
+        // --- 1. Cek & update masook_user_id jika kosong ---
+        if ($userId !== '' && trim((string) ($session['user_id'] ?? '')) === '' && $localUserId > 0) {
+            $stmt = db()->prepare(
+                "UPDATE users SET masook_user_id = :masook_user_id
+                 WHERE id = :id AND (masook_user_id IS NULL OR masook_user_id = '')"
+            );
+            $stmt->execute(['id' => $localUserId, 'masook_user_id' => $userId]);
+        }
+
+        // --- 2. Panggil API History → cek & update organisasi_id, latitude, longitude ---
+        $historyUserId = $userId ?: (string) ($session['user_id'] ?? '');
+        if ($historyUserId !== '') {
+            $organisasiId = (string) ($session['organisasi_id'] ?? '');
+            $historyQuery = array_filter([
+                'organisasi_id' => $organisasiId,
+                'isPaginate' => 'true',
+                'format' => 'mobile',
+                'tgl_mulai' => date('Y-m-d'),
+                'tgl_selesai' => date('Y-m-d'),
+                'is_aktivitas' => '1',
+                'page' => '1',
+            ], static fn($v) => $v !== '');
+
+            $historyUrl = MASOOK_BASE_URL . '/api/presensi/riwayat/' . rawurlencode($historyUserId);
+            if ($historyQuery) {
+                $historyUrl .= '?' . http_build_query($historyQuery);
+            }
+
+            try {
+                $history = masook_authorized_request('GET', $historyUrl, $session);
+                $session = $history['session'] ?? $session;
+                $historyBody = is_array($history['body'] ?? null) ? $history['body'] : [];
+
+                // Update organisasi_id jika kosong
+                if (trim((string) ($session['organisasi_id'] ?? '')) === '') {
+                    $detectedOrgId = pm_first_scalar_by_keys($historyBody, [
+                        'organisasi_id', 'id_organisasi', 'organisasiId', 'idOrganisasi',
+                    ]);
+                    if ($detectedOrgId !== '') {
+                        update_masook_user_organisasi_id_if_empty($localUserId, $detectedOrgId);
+                    }
+                }
+
+                // Update latitude & longitude jika kosong
+                $sessionCoordsEmpty = trim((string) ($session['latitude'] ?? '')) === ''
+                    || trim((string) ($session['longitude'] ?? '')) === '';
+                if ($sessionCoordsEmpty) {
+                    // Cari dari items riwayat
+                    $historyItems = pm_find_history_items($historyBody);
+                    if (!empty($historyItems)) {
+                        $firstItem = $historyItems[0];
+                        $detectedLat = pm_first_scalar_by_keys($firstItem, ['latitude', 'lat']);
+                        $detectedLng = pm_first_scalar_by_keys($firstItem, ['longitude', 'lng', 'lon']);
+                        if ($detectedLat !== '' && $detectedLng !== '') {
+                            update_masook_user_coordinates_if_empty($localUserId, $detectedLat, $detectedLng);
+                        }
+                    }
+                }
+            } catch (Throwable $e) {
+                // Lanjutkan jika history API gagal, registrasi tetap berhasil
+            }
+        }
+
+        // --- 3. Panggil API Orgs → cek & update organisasi_kode ---
+        $session = find_masook_session_by_username($username) ?? $session;
+        if (trim((string) ($session['organisasi_kode'] ?? '')) === '') {
+            try {
+                $orgsUrl = MASOOK_BASE_URL . '/api/orgs';
+                $orgs = masook_authorized_request('GET', $orgsUrl, $session);
+                $session = $orgs['session'] ?? $session;
+                $orgsBody = is_array($orgs['body'] ?? null) ? $orgs['body'] : [];
+
+                $orgRows = pm_find_org_rows($orgsBody);
+                if (!empty($orgRows)) {
+                    $firstOrg = $orgRows[0];
+                    $detectedKode = pm_first_scalar_by_keys($firstOrg, [
+                        'kode_organisasi', 'organisasi_kode', 'kode_org', 'kodeOrg', 'kode', 'no_reg',
+                    ]);
+                    if ($detectedKode !== '') {
+                        update_masook_user_organisasi_kode($username, $detectedKode);
+                    }
+                }
+            } catch (Throwable $e) {
+                // Lanjutkan jika orgs API gagal, registrasi tetap berhasil
+            }
+        }
+    }
+
     return [
         'ok'         => true,
         'reply_text' => "✅ *Register berhasil!*\n\nHalo, akun *{$username}* telah terdaftar di sistem.\n\nAnda sekarang dapat melakukan absensi dengan mengetik:\n*ABSEN*",
@@ -307,11 +430,66 @@ function pm_register_user(array $command): array
     ];
 }
 
+/**
+ * Helper: cari items riwayat dari response body (digunakan saat registrasi).
+ */
+function pm_find_history_items(array $body): array
+{
+    $candidates = [
+        $body['data']['data'] ?? null,
+        $body['data']['items'] ?? null,
+        $body['data']['riwayat'] ?? null,
+        $body['data']['presensi'] ?? null,
+        $body['data'] ?? null,
+        $body['rows'] ?? null,
+        $body['result'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_array($candidate) && !empty($candidate) && array_keys($candidate) === range(0, count($candidate) - 1)) {
+            return array_values(array_filter($candidate, 'is_array'));
+        }
+    }
+
+    return [];
+}
+
+/**
+ * Helper: cari baris organisasi dari response body (digunakan saat registrasi).
+ */
+function pm_find_org_rows($value): array
+{
+    if (!is_array($value)) {
+        return [];
+    }
+
+    if (array_keys($value) === range(0, count($value) - 1)) {
+        return array_values(array_filter($value, 'is_array'));
+    }
+
+    foreach (['data', 'items', 'organisasi', 'orgs', 'rows', 'result'] as $key) {
+        if (isset($value[$key])) {
+            $rows = pm_find_org_rows($value[$key]);
+            if ($rows !== []) {
+                return $rows;
+            }
+        }
+    }
+
+    foreach ($value as $child) {
+        $rows = pm_find_org_rows($child);
+        if ($rows !== []) {
+            return $rows;
+        }
+    }
+
+    return [];
+}
+
 function pm_help_reply(): string
 {
     return "Format perintah yang tersedia:\n"
         . "• *ABSEN* — Kirim presensi masuk/pulang\n"
-        . "• *PRESENSI* — Alternatif ABSEN\n"
         . "• *ABSENSI* — Uji coba balasan bot\n"
         . "• *REG EMAIL PASSWORD* — Daftar akun baru\n\n"
         . "Jika belum terdaftar, ketik:\n*REG nama@email.com password_anda*";
@@ -376,7 +554,7 @@ function pm_send_presensi(array $command): array
         ];
     }
 
-    if (!in_array($command['command'], ['ABSEN', 'PRESENSI'], true)) {
+    if ($command['command'] !== 'ABSEN') {
         return [
             'ok'         => false,
             'reply_text' => pm_help_reply(),
@@ -582,7 +760,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <h2>Format Pesan</h2>
         <pre>ABSEN</pre>
-        <pre>PRESENSI</pre>
+
         <p>Backend mendeteksi nomor WhatsApp pengirim, lalu mengambil <code>username</code>, <code>masook_user_id</code>, <code>organisasi_kode</code>, <code>latitude</code>, dan <code>longitude</code> dari tabel <code>users</code>. Parameter opsional untuk testing: <code>kode_org=ORG-XXXX</code>, <code>lat=-3.327</code>, <code>lon=116.162</code>, <code>akurasi=10</code>, <code>percobaan=1</code>.</p>
 
         <h2>Contoh Payload POST</h2>
