@@ -193,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $presensiUrl = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/presensi/personal';
         $presensi = masook_authorized_request('POST', $presensiUrl, $session, [
-            'Content-Type: application/x-www-form-urlencoded',
+            'Content-Type: application/json',
         ], $payload);
         $session = $presensi['session'] ?? $session;
         unset($presensi['session']);
@@ -264,7 +264,7 @@ page_start('Presensi Personal', [
                     </div>
                     <div class="col-12 col-md-6 col-lg-3">
                         <label class="form-label fw-semibold" for="percobaan_ke">Percobaan</label>
-                        <input class="form-control" id="percobaan_ke" name="percobaan_ke" type="number" min="1" value="<?= e((string) ($_POST['percobaan_ke'] ?? $defaults['percobaan_ke'])) ?>">
+                        <input class="form-control" id="percobaan_ke" name="percobaan_ke" type="number" min="0" value="<?= e((string) ($_POST['percobaan_ke'] ?? $defaults['percobaan_ke'])) ?>">
                     </div>
                     <div class="col-12 col-md-6 col-lg-3">
                         <label class="form-label fw-semibold" for="akurasi">Akurasi</label>

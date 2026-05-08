@@ -19,7 +19,18 @@ function request_api(string $method, string $url, array $headers = [], array $pa
 
     if ($method === 'POST') {
         $options[CURLOPT_POST] = true;
-        $options[CURLOPT_POSTFIELDS] = http_build_query($payload);
+
+        $isJson = false;
+        foreach ($headers as $h) {
+            if (stripos($h, 'Content-Type:') !== false && stripos($h, 'application/json') !== false) {
+                $isJson = true;
+                break;
+            }
+        }
+
+        $options[CURLOPT_POSTFIELDS] = $isJson
+            ? json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            : http_build_query($payload);
     }
 
     curl_setopt_array($ch, $options);
