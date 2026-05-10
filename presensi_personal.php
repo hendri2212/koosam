@@ -8,6 +8,10 @@ date_default_timezone_set('Asia/Makassar');
 
 const PRESENSI_DEVICE = 'Xiaomi-M2103K19PG';
 const PRESENSI_ACCURACY = '10.0';
+const PRESENSI_DEFAULT_TIPE = '1';
+const PRESENSI_DEFAULT_LABEL = 'Tepat Waktu';
+const PRESENSI_DEFAULT_JADWAL_DETAIL_ID = '137488';
+const PRESENSI_DEFAULT_LOKASI_PRESENSI_ID = '3140';
 
 $currentSession = require_masook_login();
 
@@ -107,6 +111,157 @@ function response_pick($body, array $keys, string $fallback = '-'): string
     return $fallback;
 }
 
+function numeric_distance(string $latA, string $lngA, string $latB, string $lngB): float
+{
+    if (!is_numeric($latA) || !is_numeric($lngA) || !is_numeric($latB) || !is_numeric($lngB)) {
+        return INF;
+    }
+
+    return sqrt(((float) $latA - (float) $latB) ** 2 + ((float) $lngA - (float) $lngB) ** 2);
+}
+
+function find_lokasi_presensi_id(array &$session, string $kodeOrg, string $latitude, string $longitude): array
+{
+    $url = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/lokasi-presensi';
+    $response = masook_authorized_request('GET', $url, $session);
+    $session = $response['session'] ?? $session;
+    unset($response['session']);
+
+    $items = is_array($response['body']['data'] ?? null) ? $response['body']['data'] : [];
+    $best = null;
+    $bestDistance = INF;
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $itemDistance = numeric_distance(
+            $latitude,
+            $longitude,
+            (string) ($item['latitude'] ?? ''),
+            (string) ($item['longitude'] ?? '')
+        );
+
+        if ($itemDistance < $bestDistance) {
+            $bestDistance = $itemDistance;
+            $best = $item;
+        }
+    }
+
+    return [
+        'url' => $url,
+        'response' => $response,
+        'matched_location' => $best,
+        'lokasi_presensi_id' => is_array($best) ? (string) ($best['lokasi_presensi_id'] ?? '') : '',
+    ];
+}
+
+function pp_is_list_array(array $value): bool
+{
+    return array_keys($value) === range(0, count($value) - 1);
+}
+
+function pp_find_first_row_list($value): array
+{
+    if (!is_array($value)) {
+        return [];
+    }
+
+    if (pp_is_list_array($value)) {
+        return $value;
+    }
+
+    foreach ($value as $child) {
+        $rows = pp_find_first_row_list($child);
+        if ($rows !== []) {
+            return $rows;
+        }
+    }
+
+    return [];
+}
+
+function pp_history_items(array $historyBody): array
+{
+    $candidates = [
+        $historyBody['data']['data'] ?? null,
+        $historyBody['data']['items'] ?? null,
+        $historyBody['data']['riwayat'] ?? null,
+        $historyBody['data']['presensi'] ?? null,
+        $historyBody['data'] ?? null,
+        $historyBody['rows'] ?? null,
+        $historyBody['result'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $rows = pp_find_first_row_list($candidate);
+        if ($rows !== []) {
+            return array_values(array_filter($rows, 'is_array'));
+        }
+    }
+
+    return [];
+}
+
+function pp_row_value(array $row, array $keys, string $fallback = ''): string
+{
+    foreach ($keys as $key) {
+        if (isset($row[$key]) && $row[$key] !== '') {
+            return is_scalar($row[$key]) ? (string) $row[$key] : json_encode($row[$key], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    return $fallback;
+}
+
+function pp_scan_date(array $row): string
+{
+    $waktuScan = pp_row_value($row, ['waktu_scan']);
+    if ($waktuScan === '') {
+        return pp_row_value($row, ['tanggal', 'tgl', 'tgl_presensi', 'tanggal_presensi', 'created_at']);
+    }
+
+    $timestamp = strtotime($waktuScan);
+
+    return $timestamp !== false ? date('Y-m-d', $timestamp) : $waktuScan;
+}
+
+function get_today_presence_state(array &$session, string $userId): array
+{
+    $today = date('Y-m-d');
+    $query = array_filter([
+        'organisasi_id' => (string) ($session['organisasi_id'] ?? ''),
+        'isPaginate' => 'true',
+        'format' => 'mobile',
+        'tgl_mulai' => $today,
+        'tgl_selesai' => $today,
+        'is_aktivitas' => '1',
+        'page' => '1',
+    ], static fn($value) => $value !== '');
+
+    $url = MASOOK_BASE_URL . '/api/presensi/riwayat/' . rawurlencode($userId);
+    if ($query) {
+        $url .= '?' . http_build_query($query);
+    }
+
+    $history = masook_authorized_request('GET', $url, $session);
+    $session = $history['session'] ?? $session;
+    unset($history['session']);
+
+    $items = is_array($history['body'] ?? null) ? pp_history_items($history['body']) : [];
+    $todayItems = array_values(array_filter($items, static function (array $row) use ($today): bool {
+        return pp_scan_date($row) === $today;
+    }));
+
+    return [
+        'url' => $url,
+        'history' => $history,
+        'today_count' => count($todayItems),
+        'next_tipe' => count($todayItems) > 0 ? '2' : '1',
+    ];
+}
+
 $defaults = [
     'username' => (string) ($currentSession['username'] ?? ''),
     'user_id' => (string) ($currentSession['user_id'] ?? ''),
@@ -115,6 +270,10 @@ $defaults = [
     'nama_perangkat' => PRESENSI_DEVICE,
     'percobaan_ke' => '0',
     'kode' => '',
+    'tipe' => PRESENSI_DEFAULT_TIPE,
+    'label' => PRESENSI_DEFAULT_LABEL,
+    'jadwal_detail_id' => PRESENSI_DEFAULT_JADWAL_DETAIL_ID,
+    'lokasi_presensi_id' => PRESENSI_DEFAULT_LOKASI_PRESENSI_ID,
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -173,7 +332,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         update_masook_user_organisasi_kode((string) $session['username'], $kodeOrg);
         $session['organisasi_kode'] = $kodeOrg;
 
-        $payload = [
+        $todayPresenceState = get_today_presence_state($session, $userId);
+
+        $personalPayload = [
             'user_id' => $userId,
             'waktu_scan' => $waktuScan,
             'latitude' => $latitude,
@@ -185,18 +346,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $kode = trim((string) ($_POST['kode'] ?? ''));
         if ($kode !== '') {
-            $payload['kode'] = $kode;
+            $personalPayload['kode'] = $kode;
         }
 
-        $payload['nama_lokasi'] = 'SMP Negeri 1 kotabaru';
-        $payload['alamat'] = 'P6X7+R97, Semayap, Pulau Laut Utara, Kotabaru Regency, South Kalimantan 72113, Indonesia';
+        $personalUrl = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/presensi/personal';
+        $personalPresensi = masook_authorized_request('POST', $personalUrl, $session, [
+            'Content-Type: application/x-www-form-urlencoded',
+        ], $personalPayload);
+        $session = $personalPresensi['session'] ?? $session;
+        unset($personalPresensi['session']);
 
-        $presensiUrl = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/presensi/personal';
-        $presensi = masook_authorized_request('POST', $presensiUrl, $session, [
-            'Content-Type: application/json',
-        ], $payload);
-        $session = $presensi['session'] ?? $session;
-        unset($presensi['session']);
+        $lokasiLookup = null;
+        $lokasiPresensiId = PRESENSI_DEFAULT_LOKASI_PRESENSI_ID;
+
+        $nonBiometrikPayload = $personalPayload;
+        $nonBiometrikPayload['tipe'] = (string) $todayPresenceState['next_tipe'];
+        $nonBiometrikPayload['label'] = PRESENSI_DEFAULT_LABEL;
+        $nonBiometrikPayload['jadwal_detail_id'] = PRESENSI_DEFAULT_JADWAL_DETAIL_ID;
+        $nonBiometrikPayload['lokasi_presensi_id'] = $lokasiPresensiId;
+
+        $nonBiometrikUrl = MASOOK_BASE_URL . '/api/orgs/' . rawurlencode($kodeOrg) . '/presensi/non-biometrik';
+        $nonBiometrikPresensi = masook_authorized_request('POST', $nonBiometrikUrl, $session, [
+            'Content-Type: application/x-www-form-urlencoded',
+        ], $nonBiometrikPayload);
+        $session = $nonBiometrikPresensi['session'] ?? $session;
+        unset($nonBiometrikPresensi['session']);
 
         $_SESSION['masook_username'] = (string) $session['username'];
         $_SESSION['masook_user_id'] = $userId;
@@ -210,14 +384,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'token_expires_at' => $session['expires_at'] ?? null,
             'org_user_url' => $orgUserUrl,
             'org_user' => $orgUser,
-            'token_refreshed_after_401' => $presensi['token_refreshed_after_401'] ?? false,
-            'presensi_url' => $presensiUrl,
-            'sent_payload' => $payload,
-            'presensi' => $presensi,
+            'lokasi_lookup' => $lokasiLookup,
+            'today_presence_state' => $todayPresenceState,
+            'token_refreshed_after_401' => [
+                'personal' => $personalPresensi['token_refreshed_after_401'] ?? false,
+                'non_biometrik' => $nonBiometrikPresensi['token_refreshed_after_401'] ?? false,
+            ],
+            'personal_url' => $personalUrl,
+            'non_biometrik_url' => $nonBiometrikUrl,
+            'sent_payload' => $personalPayload,
+            'sent_payload_non_biometrik' => $nonBiometrikPayload,
+            'presensi' => $personalPresensi,
+            'presensi_non_biometrik' => $nonBiometrikPresensi,
         ];
 
-        $presensiStatusCode = (int) ($presensi['status_code'] ?? 0);
-        if ($presensiStatusCode >= 200 && $presensiStatusCode < 300) {
+        $personalStatusCode = (int) ($personalPresensi['status_code'] ?? 0);
+        $nonBiometrikStatusCode = (int) ($nonBiometrikPresensi['status_code'] ?? 0);
+        if ($personalStatusCode >= 200 && $personalStatusCode < 300 && $nonBiometrikStatusCode >= 200 && $nonBiometrikStatusCode < 300) {
             header('Location: riwayat_today.php');
             exit;
         }
@@ -336,14 +519,38 @@ page_start('Presensi Personal', [
                         </div>
                         <div class="col-12 col-md-6">
                             <div class="border rounded p-3 h-100">
-                                <div class="text-secondary small">URL Presensi</div>
-                                <div class="fw-semibold mono-small text-break"><?= e((string) ($result['presensi_url'] ?? '-')) ?></div>
+                                <div class="text-secondary small">URL Presensi Personal</div>
+                                <div class="fw-semibold mono-small text-break"><?= e((string) ($result['personal_url'] ?? '-')) ?></div>
                             </div>
                         </div>
                         <div class="col-12 col-md-6">
                             <div class="border rounded p-3 h-100">
                                 <div class="text-secondary small">kodeOrg</div>
                                 <div class="fw-semibold mono-small"><?= e((string) $result['kode_org']) ?></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-secondary small">URL Presensi Non Biometrik</div>
+                                <div class="fw-semibold mono-small text-break"><?= e((string) ($result['non_biometrik_url'] ?? '-')) ?></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-secondary small">Lokasi Presensi ID</div>
+                                <div class="fw-semibold mono-small"><?= e((string) ($result['sent_payload_non_biometrik']['lokasi_presensi_id'] ?? '-')) ?></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-secondary small">Tipe Non Biometrik</div>
+                                <div class="fw-semibold mono-small"><?= e((string) ($result['sent_payload_non_biometrik']['tipe'] ?? '-')) ?></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-secondary small">Record Hari Ini Sebelum Submit</div>
+                                <div class="fw-semibold mono-small"><?= e((string) ($result['today_presence_state']['today_count'] ?? '-')) ?></div>
                             </div>
                         </div>
                         <div class="col-12 col-md-4">
