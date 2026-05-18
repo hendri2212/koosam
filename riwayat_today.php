@@ -421,5 +421,10 @@ page_start('Absen Hari Ini', [
                 <?php endif; ?>
             </div>
         </section>
+        <?php if ($result !== null): ?>
+            <script>
+                console.log(<?= json_encode($result['history']['body'] ?? null) ?>);
+            </script>
+        <?php endif; ?>
 <?php
 page_end();

@@ -445,24 +445,28 @@ page_start('Presensi Personal', [
                     <div class="col-12">
                         <div id="currentTime" class="presence-clock fw-semibold mono-small text-center text-nowrap">--:--:--</div>
                     </div>
+                    <!--
                     <div class="col-12 col-md-6 col-lg-3">
                         <label class="form-label fw-semibold" for="percobaan_ke">Percobaan</label>
                         <input class="form-control" id="percobaan_ke" name="percobaan_ke" type="number" min="0" value="<?= e((string) ($_POST['percobaan_ke'] ?? $defaults['percobaan_ke'])) ?>">
                     </div>
-                    <div class="col-12 col-md-6 col-lg-3">
+                    -->
+                    <div class="col-6">
                         <label class="form-label fw-semibold" for="akurasi">Akurasi</label>
                         <input class="form-control" id="akurasi" name="akurasi" type="text" value="<?= e((string) ($_POST['akurasi'] ?? $defaults['akurasi'])) ?>" required>
                     </div>
+                    <!--
                     <div class="col-12 col-md-6 col-lg-3">
                         <label class="form-label fw-semibold" for="kode">Kode</label>
                         <input class="form-control" id="kode" name="kode" type="text" value="<?= e((string) ($_POST['kode'] ?? $defaults['kode'])) ?>" placeholder="Opsional">
                     </div>
+                    -->
 
-                    <div class="col-12 col-lg-8">
+                    <div class="col-6">
                         <label class="form-label fw-semibold" for="nama_perangkat">Nama Perangkat</label>
                         <input class="form-control" id="nama_perangkat" name="nama_perangkat" type="text" value="<?= e((string) ($_POST['nama_perangkat'] ?? $defaults['nama_perangkat'])) ?>" required>
                     </div>
-                    <div class="col-12 col-lg-4">
+                    <div class="col-12">
                         <button class="btn btn-success w-100" type="submit">
                             <i class="bi bi-fingerprint me-1"></i>Kirim Presensi
                         </button>

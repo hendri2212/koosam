@@ -560,7 +560,9 @@ page_start('Riwayat Presensi', [
                     </div>
                 <?php endif; ?>
             </section>
-
+            <script>
+                console.log(<?= json_encode($result['history']['body'] ?? null) ?>);
+            </script>
         <?php endif; ?>
 <?php
 page_end();
