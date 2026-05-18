@@ -593,6 +593,9 @@ page_start('Presensi Personal', [
                     </div>
                 </div>
             </section>
+            <script>
+                console.log(<?= json_encode($result['presensi_non_biometrik']['body'] ?? null) ?>);
+            </script>
         <?php endif; ?>
 <?php
 page_end();
