@@ -451,13 +451,30 @@ page_start('Riwayat Presensi', [
                         <div class="d-grid gap-3">
                             <?php foreach ($groupedDays as $tanggal => $dayItems): ?>
                                 <?php
-                                    $firstItem = $dayItems[0];
-                                    $lastItem = $dayItems[count($dayItems) - 1];
-                                    $jamMasuk = to_wita(row_value($firstItem, ['jam_masuk', 'waktu_masuk', 'masuk', 'check_in', 'presensi_masuk'], scan_time($firstItem)));
-                                    $jamPulang = count($dayItems) > 1
-                                        ? to_wita(row_value($lastItem, ['jam_pulang', 'waktu_pulang', 'pulang', 'check_out', 'presensi_pulang'], scan_time($lastItem)))
+                                    $masukItem = null;
+                                    $pulangItem = null;
+                                    foreach ($dayItems as $item) {
+                                        $tipe = (string) row_value($item, ['tipe', 'type', 'jenis'], '');
+                                        if ($tipe === '1') $masukItem = $item;
+                                        elseif ($tipe === '2') $pulangItem = $item;
+                                    }
+                                    if ($masukItem === null && $pulangItem === null) {
+                                        $masukItem = $dayItems[0];
+                                        $pulangItem = count($dayItems) > 1 ? $dayItems[count($dayItems) - 1] : null;
+                                    }
+                                    
+                                    $firstItem = $masukItem ?? $pulangItem ?? $dayItems[0];
+                                    $lastItem = $pulangItem ?? $masukItem ?? $dayItems[count($dayItems) - 1];
+
+                                    $jamMasuk = $masukItem !== null
+                                        ? to_wita(row_value($masukItem, ['jam_masuk', 'waktu_masuk', 'masuk', 'check_in', 'presensi_masuk'], scan_time($masukItem)))
+                                        : '-';
+                                    $jamPulang = $pulangItem !== null
+                                        ? to_wita(row_value($pulangItem, ['jam_pulang', 'waktu_pulang', 'pulang', 'check_out', 'presensi_pulang'], scan_time($pulangItem)))
                                         : '-';
                                     $label = row_value($firstItem, ['label', 'status', 'status_presensi', 'status_kehadiran', 'jenis', 'tipe'], 'Terekam');
+                                    if ($label === '1') $label = 'Masuk';
+                                    elseif ($label === '2') $label = 'Pulang';
                                     $latitude = row_value($firstItem, ['latitude', 'lat']);
                                     $longitude = row_value($firstItem, ['longitude', 'lng', 'lon']);
                                     $namaPerangkat = row_value($firstItem, ['nama_perangkat', 'device_name', 'perangkat']);
