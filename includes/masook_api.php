@@ -11,10 +11,11 @@ function request_api(string $method, string $url, array $headers = [], array $pa
 {
     $ch = curl_init($url);
     $options = [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HEADER => true,
-        CURLOPT_TIMEOUT => 30,
-        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER  => true,
+        CURLOPT_HEADER          => true,
+        CURLOPT_CONNECTTIMEOUT  => 10,  // batas waktu koneksi awal (detik)
+        CURLOPT_TIMEOUT         => 30,  // batas waktu total respons (detik)
+        CURLOPT_HTTPHEADER      => $headers,
     ];
 
     if ($method === 'POST') {

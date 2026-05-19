@@ -277,6 +277,10 @@ $defaults = [
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Naikkan batas eksekusi PHP: ada 4+ request HTTP serial ke api.masook.id,
+    // masing-masing bisa memakan waktu hingga 30 detik.
+    set_time_limit(180);
+
     try {
         if ($currentSession === null) {
             throw new RuntimeException('Token belum ada di database. Login terlebih dahulu melalui login.php.');
